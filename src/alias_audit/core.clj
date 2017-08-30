@@ -28,11 +28,27 @@
                      (conj a-list (s/lower-case (first (s/split (nth csv-rec 2) #"@"))))))
                  [] (csv/read-csv rdr)))))
 
+(defn parse-postfix-alias [a]
+  (let [[alias-name recipient-list] (s/split a #"\:")
+        recipients (mapv #(s/lower-case (s/trim %)) (s/split recipient-list #"\,"))]
+    [(s/lower-case (s/trim alias-name)) recipients]))
+
+(defn process-postfix-aliases [f]
+  (with-open [rdr (io/reader f)]
+    (reduce (fn [m l]
+              (cond
+                (s/starts-with? l "#") m
+                (s/blank? l) m
+                :else (let [[alias-name recipients] (parse-postfix-alias l)]
+                        (assoc m alias-name recipients))))
+            {} (line-seq rdr))))
+
 (defn process-data [options arguments]
   (let [input-files (parse-args options arguments)
         dist-list (process-distribution-lists (:distribution-lists input-files))
         personal-list (process-personal-alias-list (:personal-aliases input-files))
-        all-exchange (set/union dist-list personal-list)]
+        all-exchange (set/union dist-list personal-list)
+        postfix-aliases (process-postfix-aliases (:postfix-aliases input-files))]
     (println (str "input files: " input-files))
     (println (str "Distribution Lists:"))
     (doseq [d dist-list]
@@ -42,7 +58,8 @@
       (println (str "\t" p)))
     (println (str "\nDistribution Lists: " (count dist-list)))
     (println (str "Personal Aliases: " (count personal-list)))
-    (println (str "Total Unique: " (count all-exchange)))))
+    (println (str "Total Unique: " (count all-exchange)))
+    (println (str "Total Postfix Aliases: " (count (keys postfix-aliases))))))
 
 ;; Command line processing
 
