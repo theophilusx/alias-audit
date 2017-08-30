@@ -17,7 +17,7 @@
     (set (reduce (fn [d-lst csv-rec]
                    (if (empty? csv-rec)
                      d-lst
-                     (conj d-lst (s/lower-case (first (s/split (second csv-rec) #"@"))))))
+                     (conj d-lst (s/lower-case (s/trim (first (s/split (second csv-rec) #"@")))))))
                  [] (csv/read-csv rdr)))))
 
 (defn process-personal-alias-list [f]
@@ -25,7 +25,7 @@
     (set (reduce (fn [a-list csv-rec]
                    (if (empty? csv-rec)
                      a-list
-                     (conj a-list (s/lower-case (first (s/split (nth csv-rec 2) #"@"))))))
+                     (conj a-list (s/lower-case (s/trim (first (s/split (nth csv-rec 2) #"@")))))))
                  [] (csv/read-csv rdr)))))
 
 (defn parse-postfix-alias [a]
@@ -43,23 +43,35 @@
                         (assoc m alias-name recipients))))
             {} (line-seq rdr))))
 
+(defn filter-exchange-aliases [postfix-aliases exchange-aliases]
+  (filter #(contains? exchange-aliases %) (keys postfix-aliases)))
+
 (defn process-data [options arguments]
   (let [input-files (parse-args options arguments)
         dist-list (process-distribution-lists (:distribution-lists input-files))
         personal-list (process-personal-alias-list (:personal-aliases input-files))
         all-exchange (set/union dist-list personal-list)
-        postfix-aliases (process-postfix-aliases (:postfix-aliases input-files))]
+        postfix-aliases (process-postfix-aliases (:postfix-aliases input-files))
+        in-both (filter-exchange-aliases postfix-aliases all-exchange)]
     (println (str "input files: " input-files))
+
     (println (str "Distribution Lists:"))
     (doseq [d dist-list]
       (println (str "\t" d)))
+
     (println (str "Personal Alias List:"))
     (doseq [p personal-list]
       (println (str "\t" p)))
+
+    (println (str "\nTo be removed from postfix aliases file"))
+    (doseq [a in-both]
+      (println (str "\t" a)))
+    
     (println (str "\nDistribution Lists: " (count dist-list)))
     (println (str "Personal Aliases: " (count personal-list)))
     (println (str "Total Unique: " (count all-exchange)))
-    (println (str "Total Postfix Aliases: " (count (keys postfix-aliases))))))
+    (println (str "Total Postfix Aliases: " (count (keys postfix-aliases))))
+    (println (str "Total To Remove From Postfix: " (count in-both)))))
 
 ;; Command line processing
 
