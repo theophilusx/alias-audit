@@ -47,6 +47,15 @@
 (defn filter-exchange-aliases [postfix-aliases exchange-aliases]
   (filter #(contains? exchange-aliases %) (keys postfix-aliases)))
 
+(defn sort-aliases [alias-m]
+  (reduce (fn [m a]
+            (let [rcpts (get alias-m a)]
+              (if (= 1 (count rcpts))
+                (update-in m [:single-rcpt] conj a)
+                (update-in m [:multi-rcpt] conj a))))
+          {:single-rcpt [] :multi-rcpt []} (keys alias-m)))
+
+
 (defn process-data [options arguments]
   (let [input-files (parse-args options arguments)
         dist-list (process-distribution-lists (:distribution-lists input-files))
@@ -58,16 +67,9 @@
         urs-alias-status (urs/get-urs-alias-status (keys pfix-aliases-2))
         pfix-aliases-3 (u/remove-keys
                         (u/remove-keys pfix-aliases-2 (:inactive urs-alias-status))
-                        (:unknown urs-alias-status))]
-    (println (str "input files: " input-files))
-
-    (println (str "Distribution Lists:"))
-    (doseq [d dist-list]
-      (println (str "\t" d)))
-
-    (println (str "Personal Alias List:"))
-    (doseq [p personal-list]
-      (println (str "\t" p)))
+                        (:unknown urs-alias-status))
+        sorted-aliases (sort-aliases pfix-aliases-3)
+        dead-single-rcpt (urs/find-inactive-rcpt pfix-aliases-3 (:single-rcpt sorted-aliases))]
 
     (println (str "\nDuplicates To Remove From Postfix Aliases File"))
     (doseq [a in-both]
@@ -81,6 +83,14 @@
     (doseq [a (:unknown urs-alias-status)]
       (println (str "\t" a)))
 
+    (println (str "\nAliases With Inactive Recipeint:"))
+    (doseq [a (:remove dead-single-rcpt)]
+      (println (str "\t" a)))
+
+    (println (str "\nAliases With Unknown Recipeint: "))
+    (doseq [a (:unknown dead-single-rcpt)]
+      (println (str "\t" a)))
+    
     (println (str "\n"))
     (println (str "\nDistribution Lists: " (count dist-list)))
     (println (str "Personal Aliases: " (count personal-list)))
@@ -90,7 +100,11 @@
     (println (str "Remaining to Check 1: " (count (keys pfix-aliases-2))))
     (println (str "Inactive Aliases: " (count (:inactive urs-alias-status))))
     (println (str "Unknown Aliases: " (count (:unknown urs-alias-status))))
-    (println (str "Remaining To Check 2: " (count (keys pfix-aliases-3))))))
+    (println (str "Remaining To Check 2: " (count (keys pfix-aliases-3))))
+    (println (str "Single Recipient Aliases: " (count (:single-rcpt sorted-aliases))))
+    (println (str "Group Aliases: " (count (:multi-rcpt sorted-aliases))))
+    (println (str "Aliases With Inactive Recipient: " (count (:remove dead-single-rcpt))))
+    (println (str "Aliases With Unknown Recipeint: " (count (:unknown dead-single-rcpt))))))
 
 ;; Command line processing
 

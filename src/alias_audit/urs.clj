@@ -68,4 +68,21 @@
                 (= "Inactive" (:status alias-rec)) (update-in status-m [:inactive] conj a)
                 (= "Active" (:status alias-rec)) status-m
                 :default (println (str "Bad data: Alias=" a " Status=" (:status alias-rec))))))
-          {:inactive [] :unknown []} as)) 
+          {:inactive [] :unknown []} as))
+
+(defn find-inactive-rcpt [alias-m alias-l]
+  (reduce (fn [m a]
+            (let [rcpt (first (get alias-m a))
+                  urs-rec (get-identity-status @db-pool {:id rcpt})]
+              (cond
+                (nil? urs-rec) (update-in m [:unknown] conj a)
+                (= "Alias" (:category urs-rec))
+                (let [alias-rec (get-urs-alias-status @db-pool rcpt)]
+                  (cond
+                    (nil? alias-rec) (update-in m [:remove] conj a)
+                    (= "Inactive" (:status alias-rec)) (update-in m [:remove] conj a)
+                    :default m))
+                (= "Reserved" (:category urs-rec)) (update-in m [:remove] conj a)
+                (= "Inactive" (:status urs-rec)) (update-in m [:remove] conj a)
+                :default m)))
+          {:unknown [] :remove []} alias-l))
