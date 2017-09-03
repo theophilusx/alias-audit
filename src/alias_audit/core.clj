@@ -6,7 +6,8 @@
             [clojure.data.csv :as csv]
             [clojure.java.io :as io]
             [alias-audit.config :refer [config]]
-            [alias-audit.urs :as urs])
+            [alias-audit.urs :as urs]
+            [alias-audit.utils :as u])
   (:gen-class))
 
 (defn parse-args [options arguments]
@@ -52,7 +53,12 @@
         personal-list (process-personal-alias-list (:personal-aliases input-files))
         all-exchange (set/union dist-list personal-list)
         postfix-aliases (process-postfix-aliases (:postfix-aliases input-files))
-        in-both (filter-exchange-aliases postfix-aliases all-exchange)]
+        in-both (filter-exchange-aliases postfix-aliases all-exchange)
+        pfix-aliases-2 (u/remove-keys postfix-aliases in-both)
+        urs-alias-status (urs/get-urs-alias-status (keys pfix-aliases-2))
+        pfix-aliases-3 (u/remove-keys
+                        (u/remove-keys pfix-aliases-2 (:inactive urs-alias-status))
+                        (:unknown urs-alias-status))]
     (println (str "input files: " input-files))
 
     (println (str "Distribution Lists:"))
@@ -63,15 +69,28 @@
     (doseq [p personal-list]
       (println (str "\t" p)))
 
-    (println (str "\nTo be removed from postfix aliases file"))
+    (println (str "\nDuplicates To Remove From Postfix Aliases File"))
     (doseq [a in-both]
       (println (str "\t" a)))
-    
+
+    (println (str "\nInactive Aliases To Remove From Posttrix Alias File"))
+    (doseq [a (:inactive urs-alias-status)]
+      (println (str "\t" a)))
+
+    (println (str "\nUnknown Aliases To Remove From Postfix Alias File"))
+    (doseq [a (:unknown urs-alias-status)]
+      (println (str "\t" a)))
+
+    (println (str "\n"))
     (println (str "\nDistribution Lists: " (count dist-list)))
     (println (str "Personal Aliases: " (count personal-list)))
     (println (str "Total Unique: " (count all-exchange)))
     (println (str "Total Postfix Aliases: " (count (keys postfix-aliases))))
-    (println (str "Total To Remove From Postfix: " (count in-both)))))
+    (println (str "Total To Remove From Postfix: " (count in-both)))
+    (println (str "Remaining to Check 1: " (count (keys pfix-aliases-2))))
+    (println (str "Inactive Aliases: " (count (:inactive urs-alias-status))))
+    (println (str "Unknown Aliases: " (count (:unknown urs-alias-status))))
+    (println (str "Remaining To Check 2: " (count (keys pfix-aliases-3))))))
 
 ;; Command line processing
 

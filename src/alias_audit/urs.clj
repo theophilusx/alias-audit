@@ -46,3 +46,26 @@
 
 (def-db-fns "sql/queries.sql")
 
+(def urs-id-cache (atom {}))
+
+(defn urs-id-lookup [id]
+  (if (contains? @urs-id-cache id)
+    (get @urs-id-cache id)
+    (let [urs-rec (get-identity-status @db-pool id)
+          status (if urs-rec
+                   {:status (:status urs-rec)
+                    :category (:id_category urs-rec)}
+                   {:status "Unknown"
+                    :category "Unknown"})]
+      (swap! urs-id-cache #(assoc % id status))
+      status)))
+
+(defn get-urs-alias-status [as]
+  (reduce (fn [status-m a]
+            (let [alias-rec (get-alias @db-pool {:alias a})]
+              (cond
+                (nil? alias-rec) (update-in status-m [:unknown] conj a)
+                (= "Inactive" (:status alias-rec)) (update-in status-m [:inactive] conj a)
+                (= "Active" (:status alias-rec)) status-m
+                :default (println (str "Bad data: Alias=" a " Status=" (:status alias-rec))))))
+          {:inactive [] :unknown []} as)) 
