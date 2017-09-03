@@ -2,12 +2,12 @@
   (:require [clojure.string :as s]
             [clojure.set :as set]
             [clojure.tools.cli :refer [parse-opts]]
+            [clojure.tools.logging :as log]
             [clojure.data.csv :as csv]
             [clojure.java.io :as io]
-            [cprop.core :refer [load-config]])
+            [alias-audit.config :refer [config]]
+            [alias-audit.urs :as urs])
   (:gen-class))
-
-(def config (load-config))
 
 (defn parse-args [options arguments]
   (reduce merge {} (map #(conj [] %1 %2) (keys options) arguments)))
