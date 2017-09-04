@@ -69,7 +69,8 @@
                         (u/remove-keys pfix-aliases-2 (:inactive urs-alias-status))
                         (:unknown urs-alias-status))
         sorted-aliases (sort-aliases pfix-aliases-3)
-        dead-single-rcpt (urs/find-inactive-rcpt pfix-aliases-3 (:single-rcpt sorted-aliases))]
+        dead-single-rcpt (urs/find-inactive-rcpt pfix-aliases-3 (:single-rcpt sorted-aliases))
+        modify-multi (urs/group-with-inactive-rcpt pfix-aliases-3 (:multi-rcpt sorted-aliases))]
 
     (println (str "\nDuplicates To Remove From Postfix Aliases File"))
     (doseq [a in-both]
@@ -90,6 +91,10 @@
     (println (str "\nAliases With Unknown Recipeint: "))
     (doseq [a (:unknown dead-single-rcpt)]
       (println (str "\t" a)))
+
+    (println (str "\nGroup Aliases Needing Recipients Removed:"))
+    (doseq [a (keys modify-multi)]
+      (println (str "\t" a " => " (get modify-multi a))))
     
     (println (str "\n"))
     (println (str "\nDistribution Lists: " (count dist-list)))
@@ -104,7 +109,8 @@
     (println (str "Single Recipient Aliases: " (count (:single-rcpt sorted-aliases))))
     (println (str "Group Aliases: " (count (:multi-rcpt sorted-aliases))))
     (println (str "Aliases With Inactive Recipient: " (count (:remove dead-single-rcpt))))
-    (println (str "Aliases With Unknown Recipeint: " (count (:unknown dead-single-rcpt))))))
+    (println (str "Aliases With Unknown Recipeint: " (count (:unknown dead-single-rcpt))))
+    (println (str "Group Aliases Needing Update: " (count (keys modify-multi))))))
 
 ;; Command line processing
 

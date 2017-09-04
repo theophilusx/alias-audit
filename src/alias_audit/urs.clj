@@ -1,5 +1,6 @@
 (ns alias-audit.urs
   (:require [alias-audit.config :refer [config]]
+            [clojure.string :as string]
             [clojure.tools.logging :as log]
             [hugsql.core :refer [def-db-fns]])
   (:import com.mchange.v2.c3p0.ComboPooledDataSource))
@@ -70,19 +71,44 @@
                 :default (println (str "Bad data: Alias=" a " Status=" (:status alias-rec))))))
           {:inactive [] :unknown []} as))
 
+(defn strip-une-domain [rcpt]
+  (if (or (string/includes? rcpt "@une.edu.au")
+          (string/includes? rcpt "@ad.une.edu.au"))
+    (first (string/split rcpt #"@"))
+    rcpt))
+
+(defn recipient-status [rcpt]
+  (let [urs-rec (get-identity-status @db-pool {:id (strip-une-domain rcpt)})]
+    (cond
+      (nil? urs-rec) :unknown
+      (= "Alias" (:category urs-rec)) (let [a-rec (get-urs-alias-status @db-pool rcpt)]
+                                        (cond
+                                          (nil? a-rec) :unknown
+                                          (= "Inactive" (:status a-rec)) :inactive
+                                          :default :active))
+      (= "Reserved" (:category urs-rec)) :inactive
+      (= "Inactive" (:status urs-rec)) :inactive
+      :default :active)))
+
 (defn find-inactive-rcpt [alias-m alias-l]
   (reduce (fn [m a]
             (let [rcpt (first (get alias-m a))
-                  urs-rec (get-identity-status @db-pool {:id rcpt})]
-              (cond
-                (nil? urs-rec) (update-in m [:unknown] conj a)
-                (= "Alias" (:category urs-rec))
-                (let [alias-rec (get-urs-alias-status @db-pool rcpt)]
-                  (cond
-                    (nil? alias-rec) (update-in m [:remove] conj a)
-                    (= "Inactive" (:status alias-rec)) (update-in m [:remove] conj a)
-                    :default m))
-                (= "Reserved" (:category urs-rec)) (update-in m [:remove] conj a)
-                (= "Inactive" (:status urs-rec)) (update-in m [:remove] conj a)
-                :default m)))
+                  status (recipient-status rcpt)]
+              (condp = status
+                :inactive (update-in m [:remove] conj a)
+                :unknown (update-in m [:unknown] conj a)
+                :active m)))
           {:unknown [] :remove []} alias-l))
+
+(defn group-with-inactive-rcpt [alias-m alias-l]
+  (reduce (fn [m a]
+            (let [rcpts (get alias-m a)
+                  dead-rcpts (reduce (fn [v r]
+                                       (if (= :inactive (recipient-status r))
+                                         (conj v r)
+                                         v))
+                                     [] rcpts)]
+              (if (empty? dead-rcpts)
+                m
+                (assoc m a dead-rcpts))))
+          {} alias-l))
